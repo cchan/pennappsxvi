@@ -84,8 +84,11 @@ from flask_restful import Resource, Api, reqparse
 import json
 
 parser = reqparse.RequestParser()
-parser.add_argument('ticker', type=str, help='Ticker to acquire time series data for')
-parser.add_argument('interval', type=str, help='How long to look back. Currently only 1w, 1m, or 1y.')
+parser.add_argument('ticker', type=str, help='Ticker to acquire time series data for', required=True)
+parser.add_argument('interval', type=str, help='How long to look back. Currently only 1w, 1m, or 1y.', required=True)
+
+parser_search = reqparse.RequestParser()
+parser_search.add_argument('query', type=str, help='Search query to look for tickers with.', required=True)
 
 app = Flask(__name__)
 api = Api(app)
@@ -98,11 +101,39 @@ def date_handler(x):
 class TickerData(Resource):
     def get(self):
         args = parser.parse_args()
-        print('get', args['ticker'], args['interval'])
+        print('TickerData', args['ticker'], args['interval'])
         result = query(args['ticker'], args['interval'])
         return [{'ticker': str(a[1]), 'date': str(a[2].isoformat()), 'price': str(a[3])} for a in result]
 
-api.add_resource(TickerData, '/')
+api.add_resource(TickerData, '/data')
+
+
+import pickle
+from collections import defaultdict
+def dddd():
+    return 0
+def dd():
+    return defaultdict(dddd)
+bows, index = pickle.load(open("searchfile.pickle", "rb"))
+symbols = pickle.load(open("symbols.pickle", "rb"))
+import math
+
+def search(searchterm):
+    number_of_terms_that_match = {symbol: 0 for symbol, fullname in symbols.items()}
+    if searchterm.upper() in symbols:
+        number_of_terms_that_match[searchterm.upper()] += 100000000
+    for term in searchterm.lower().split(' '):
+        for ticker in index[term]:
+            number_of_terms_that_match[ticker] += math.log(len(bows) / len(index[term])) * index[term][ticker] / sum(bows[ticker].values())
+    return [s for s, val in sorted(number_of_terms_that_match.items(),key=lambda x:-x[1]) if val > 0][:10]
+
+class SearchQuery(Resource):
+    def get(self):
+        args = parser_search.parse_args()
+        print('SearchQuery', args['query'])
+        return search(args['query'])
+
+api.add_resource(SearchQuery, '/search')
 
 if __name__ == '__main__':
     app.run(debug=True)
